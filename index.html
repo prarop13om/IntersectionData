@@ -19,7 +19,10 @@
     .ctrl input { flex:1; padding:8px 10px; border:1px solid #e3e6eb; border-radius:10px; font-size:14px; }
     .ctrl button { padding:8px 10px; border:1px solid #e3e6eb; background:#fff; border-radius:10px; font-size:14px; }
     .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background:#111; color:#fff; padding:8px 12px; border-radius:12px; font-size:12px; opacity:0.9; z-index: 2000; }
-  </style>
+  .user-dot{width:18px;height:18px;border-radius:50%;background:#2b7bff;box-shadow:0 0 0 3px rgba(43,123,255,.25);position:relative}
+.user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+</style>
 </head>
 <body>
 <div id="app">
@@ -28,7 +31,7 @@
     <div class="sub">ดูหมุดสถานี/ชื่อแยก + พิกัดปัจจุบันของคุณ (เฉพาะทีมงาน)</div>
     <div class="ctrl">
       <input id="search" placeholder="ค้นหา: ชื่อแยก / สน. / บก. / บช. / คลื่น" />
-      <button id="locBtn">ตำแหน่งฉัน</button>
+      <button id="locBtn">เริ่มติดตามฉัน</button>
       <button id="reloadBtn">รีโหลดข้อมูล</button>
     </div>
   </header>
@@ -59,7 +62,7 @@ const COLS = {
 };
 
 /*** โค้ดหลัก ***/
-let map, allMarkers = [], dataRows = [], userMarker = null, userCircle = null; 
+let map, allMarkers = [], dataRows = [], userMarker = null, userCircle = null, watchId = null, following = true; const userIcon = L.divIcon({ className: 'user-dot', iconSize: [18,18] }); 
 
 function toast(msg, ms=2000){
   const el = document.getElementById('toast');
@@ -214,6 +217,43 @@ function locateOnce(){
   }, { enableHighAccuracy:true, timeout:8000 });
 }
 
+// ====== ติดตามตำแหน่งแบบต่อเนื่อง ======
+function updateUserLocation(latitude, longitude, accuracy){
+  if(!userMarker){
+    userMarker = L.marker([latitude, longitude], { title: 'ตำแหน่งของฉัน', icon: userIcon }).bindPopup('ตำแหน่งของฉัน');
+    userMarker.addTo(map);
+  } else {
+    userMarker.setLatLng([latitude, longitude]);
+  }
+  if(!userCircle){
+    userCircle = L.circle([latitude, longitude], { radius: accuracy||50 });
+    userCircle.addTo(map);
+  } else {
+    userCircle.setLatLng([latitude, longitude]);
+    userCircle.setRadius(accuracy||50);
+  }
+}
+function startWatch(){
+  if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; }
+  if(watchId!=null){ toast('กำลังติดตามอยู่แล้ว'); return; }
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    updateUserLocation(latitude, longitude, accuracy);
+    if(following){ map.setView([latitude, longitude], Math.max(14, map.getZoom())); }
+  }, err => {
+    toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง');
+    stopWatch();
+  }, { enableHighAccuracy:true, maximumAge: 3000, timeout:10000 });
+  const b = document.getElementById('locBtn'); if(b) b.textContent = 'หยุดติดตามฉัน';
+  toast('เริ่มติดตามตำแหน่ง');
+}
+function stopWatch(){
+  if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  const b = document.getElementById('locBtn'); if(b) b.textContent = 'เริ่มติดตามฉัน';
+  toast('หยุดติดตามตำแหน่ง');
+}
+// ====== /ติดตามตำแหน่ง ======
+
 async function init(){
   ensureMap();
   try{
@@ -228,7 +268,7 @@ async function init(){
 // UI events
 window.addEventListener('DOMContentLoaded', () => {
   init();
-  document.getElementById('locBtn').onclick = locateOnce;
+  document.getElementById('locBtn').onclick = ()=>{ if(watchId==null) startWatch(); else stopWatch(); };
   document.getElementById('reloadBtn').onclick = init;
   const search = document.getElementById('search');
   search.addEventListener('input', (e)=>{
