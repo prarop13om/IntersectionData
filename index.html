@@ -25,7 +25,7 @@
   .legend{background:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);font-size:12px}
   .legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
   .legend .sw{width:12px;height:12px;border-radius:3px;border:1px solid #333}
-</style>
+  </style>
 </head>
 <body>
 <div id="app">
@@ -44,16 +44,16 @@
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<!-- PapaParse (ไว้แปลง CSV จาก Google Sheets) -->
+<!-- PapaParse -->
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-// ===== Config: ใส่ URL CSV ของแต่ละชีต =====
+// ===== Config: URL CSV ของแต่ละชีต =====
 const INTERSECTION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=1203231005&single=true&output=csv"; // Intersection: name, station, lat, lng
 const STATION_CSV_URL      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=705908281&single=true&output=csv";      // Station: station_name, division_name, radio
 const DIVISION_CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=940717141&single=true&output=csv";     // Division: division_name, bureau_name
 const BUREAU_CSV_URL       = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=193057135&single=true&output=csv";       // Bureau: bureau_name
 
-// ===== Column mappings (ยอมรับชื่อหัวคอลัมน์ใกล้เคียง) =====
+// ===== Column mappings =====
 const COLS = { // Intersection
   name:["name","ชื่อแยก","junction"],
   station:["station","สน./สภ.","สน.","สภ."],
@@ -65,12 +65,10 @@ const COLS_STATION = {
   division_name:["division_name","division","บก."],
   radio:["radio","คลื่นวิทยุ","ความถี่"]
 };
-
 const COLS_DIVISION = {
   division_name:["division_name","division","บก."],
   bureau_name:["bureau_name","bureau","บช.","ภ."]
 };
-
 const COLS_BUREAU = { bureau_name:["bureau_name","bureau","บช.","ภ."] };
 
 // ===== สีตาม บก. =====
@@ -90,6 +88,7 @@ function parseCsvRows(rows, mapping){ if(!rows||rows.length<2) throw new Error('
 function toNum(v){ if(v==null) return NaN; let s=String(v).trim(); if((s.split(',').length-1)===1 && s.indexOf('.')===-1) s=s.replace(',', '.'); const allowed='0123456789.-'; s=Array.from(s).filter(ch=>allowed.indexOf(ch)!==-1).join(''); const n=parseFloat(s); return isNaN(n)?NaN:n; }
 function loadCsv(url){ return new Promise((resolve,reject)=>{ if(!url||url.startsWith('PUT_')) return reject(new Error('ยังไม่ได้ตั้งค่า URL CSV')); Papa.parse(url,{download:true,complete:r=>resolve(r.data),error:err=>reject(err)}); }); }
 
+// ===== Load all CSVs (4 sheets) =====
 async function loadAllCSVs(){
   toast('กำลังดึง 4 ชีต...');
   const [rowsI, rowsS, rowsD, rowsB] = await Promise.all([
@@ -130,31 +129,11 @@ async function loadAllCSVs(){
     if(dv) divisionToBureau.set(dv, bc);
   }
 
-  // Bureau (optional list)
+  // Bureau (optional validate list)
   parseCsvRows(rowsB, COLS_BUREAU);
 
   console.log('[CSV] intersections:', intersections.length, 'bad:', badI, 'stations:', stationInfo.size, 'divisions:', divisionToBureau.size);
   return { intersections, stationInfo, divisionToBureau };
-} = parseCsvRows(rowsI, COLS);
-  const intersections=[]; let badI=0;
-  for(let i=1;i<rowsI.length;i++){
-    const r=rowsI[i]; if(!r||r.length===0) continue;
-    const lat=toNum(r[idxI.lat]); const lng=toNum(r[idxI.lng]);
-    if(isNaN(lat)||isNaN(lng)){ badI++; continue; }
-    intersections.push({ name:r[idxI.name], station:r[idxI.station], lat, lng });
-  }
-  // Station map: station_name -> { division, radio }
-  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION);
-  const stationInfo = new Map();
-  for(let i=1;i<rowsS.length;i++){
-    const r=rowsS[i]; if(!r||r.length===0) continue;
-    const st = norm(r[idxS.station_name]);
-    const dv = norm(r[idxS.division_name]);
-    const ra = norm(r[idxS.radio]);
-    if(st) stationInfo.set(st, { division: dv, radio: ra });
-  }
-  console.log('[CSV] intersections:', intersections.length, 'bad:', badI, 'stations:', stationInfo.size);
-  return { intersections, stationInfo };
 }
 
 // ===== Map & UI =====
@@ -162,7 +141,8 @@ let map, allMarkers=[], dataRows=[], userMarker=null, userCircle=null, watchId=n
 const userIcon = L.divIcon({ className:'user-dot', iconSize:[18,18] });
 
 function buildPopup(r){
-  const chain = [ r.name ? '"'+r.name+'"' : null, r.station, r.division, r.bureau ].filter(Boolean).map(x=>normalizeUnitText(x)).join(' → ');
+  const chain = [ r.name ? '"'+r.name+'"' : null, r.station, r.division, r.bureau ]
+    .filter(Boolean).map(x=>normalizeUnitText(x)).join(' → ');
   return [
     `<div style="font-weight:600;font-size:15px;">${r.name||"(ไม่มีชื่อ)"}</div>`,
     `<div style="margin:6px 0;">`
@@ -180,21 +160,68 @@ function clearMarkers(){ allMarkers.forEach(m=>map.removeLayer(m)); allMarkers=[
 function plotMarkers(rows){
   clearMarkers();
   const grp=L.featureGroup();
-  rows.forEach(r=>{ if(isFinite(r.lat)&&isFinite(r.lng)){ const m=L.circleMarker([r.lat,r.lng],{radius:8,weight:1,color:'#333',fillColor:getDivisionColor(r.division),fillOpacity:0.95}).bindPopup(buildPopup(r)); m.addTo(grp); allMarkers.push(m);} });
+  rows.forEach(r=>{
+    if(isFinite(r.lat)&&isFinite(r.lng)){
+      const m=L.circleMarker([r.lat,r.lng],{
+        radius:8,weight:1,color:'#333',fillColor:getDivisionColor(r.division),fillOpacity:0.95
+      }).bindPopup(buildPopup(r));
+      m.addTo(grp); allMarkers.push(m);
+    }
+  });
   grp.addTo(map); if(rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
   updateLegend(rows);
 }
-function updateLegend(rows){ const el=document.getElementById('legendList'); if(!el) return; const divs=Array.from(new Set(rows.map(r=>normalizeUnitText(r.division)).filter(Boolean))); el.innerHTML=divs.map(d=>`<div class="row"><span class="sw" style="background:${getDivisionColor(d)}"></span>${d}</div>`).join(''); }
+function updateLegend(rows){
+  const el=document.getElementById('legendList'); if(!el) return;
+  const divs=Array.from(new Set(rows.map(r=>normalizeUnitText(r.division)).filter(Boolean)));
+  el.innerHTML=divs.map(d=>`<div class="row"><span class="sw" style="background:${getDivisionColor(d)}"></span>${d}</div>`).join('');
+}
 
-function filterRows(q){ if(!q) return dataRows; const s=q.toLowerCase(); return dataRows.filter(r=>[r.name,r.station,r.division,r.bureau,r.radio].some(v=>(v||"").toLowerCase().includes(s))); }
+function filterRows(q){
+  if(!q) return dataRows; const s=q.toLowerCase();
+  return dataRows.filter(r => [r.name,r.station,r.division,r.bureau,r.radio]
+    .some(v => (v||"").toLowerCase().includes(s)));
+}
 
-function updateUserLocation(lat,lng,acc){ if(!userMarker){ userMarker=L.marker([lat,lng],{title:'ตำแหน่งของฉัน',icon:userIcon}).bindPopup('ตำแหน่งของฉัน'); userMarker.addTo(map);} else { userMarker.setLatLng([lat,lng]); } if(!userCircle){ userCircle=L.circle([lat,lng],{radius:acc||50}); userCircle.addTo(map);} else { userCircle.setLatLng([lat,lng]); userCircle.setRadius(acc||50);} }
-function startWatch(){ if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; } if(watchId!=null){ toast('กำลังติดตามอยู่แล้ว'); return; } watchId=navigator.geolocation.watchPosition(p=>{ const {latitude,longitude,accuracy}=p.coords; updateUserLocation(latitude,longitude,accuracy); if(following){ map.setView([latitude,longitude], Math.max(14,map.getZoom())); } }, err=>{ toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง'); stopWatch(); }, { enableHighAccuracy:true, maximumAge:3000, timeout:10000 }); const b=document.getElementById('locBtn'); if(b) b.textContent='หยุดติดตามฉัน'; toast('เริ่มติดตามตำแหน่ง'); }
-function stopWatch(){ if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId=null; } const b=document.getElementById('locBtn'); if(b) b.textContent='เริ่มติดตามฉัน'; toast('หยุดติดตามตำแหน่ง'); }
+function updateUserLocation(lat,lng,acc){
+  if(!userMarker){ userMarker=L.marker([lat,lng],{title:'ตำแหน่งของฉัน',icon:userIcon}).bindPopup('ตำแหน่งของฉัน'); userMarker.addTo(map); }
+  else { userMarker.setLatLng([lat,lng]); }
+  if(!userCircle){ userCircle=L.circle([lat,lng],{radius:acc||50}); userCircle.addTo(map); }
+  else { userCircle.setLatLng([lat,lng]); userCircle.setRadius(acc||50); }
+}
+function startWatch(){
+  if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; }
+  if(watchId!=null){ toast('กำลังติดตามอยู่แล้ว'); return; }
+  watchId=navigator.geolocation.watchPosition(p=>{
+    const {latitude,longitude,accuracy}=p.coords;
+    updateUserLocation(latitude,longitude,accuracy);
+    if(following){ map.setView([latitude,longitude], Math.max(14,map.getZoom())); }
+  }, err=>{ toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง'); stopWatch(); }, { enableHighAccuracy:true, maximumAge:3000, timeout:10000 });
+  const b=document.getElementById('locBtn'); if(b) b.textContent='หยุดติดตามฉัน';
+  toast('เริ่มติดตามตำแหน่ง');
+}
+function stopWatch(){
+  if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  const b=document.getElementById('locBtn'); if(b) b.textContent='เริ่มติดตามฉัน';
+  toast('หยุดติดตามตำแหน่ง');
+}
 
 let legendControl=null;
-function ensureMap(){ if(map) return; map=L.map('map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map); map.setView([13.7563,100.5018],11); legendControl=L.control({position:'bottomright'}); legendControl.onAdd=function(){ const div=L.DomUtil.create('div','legend'); div.innerHTML=`<b>สีตาม บก.</b><div id="legendList"></div>`; return div; }; legendControl.addTo(map); }
+function ensureMap(){
+  if(map) return;
+  map=L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  map.setView([13.7563,100.5018],11);
+  legendControl=L.control({position:'bottomright'});
+  legendControl.onAdd=function(){
+    const div=L.DomUtil.create('div','legend');
+    div.innerHTML=`<b>สีตาม บก.</b><div id="legendList"></div>`;
+    return div;
+  };
+  legendControl.addTo(map);
+}
 
+// ===== Startup =====
 async function init(){
   ensureMap();
   try{
@@ -210,20 +237,13 @@ async function init(){
   }catch(e){
     console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e?.message||''));
   }
-} = await loadAllCSVs();
-    dataRows = intersections.map(o=>{
-      const info = stationInfo.get(norm(o.station)) || {};
-      return { ...o, division: info.division || '', radio: info.radio || '' };
-    });
-    plotMarkers(dataRows);
-    toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`);
-  }catch(e){
-    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e?.message||''));
-  }
-}=await loadAllCSVs(); dataRows=intersections.map(o=>{ const st=normalizeUnitText(o.station); const dv=normalizeUnitText(stationToDivision.get(st)||''); const bc=normalizeUnitText(divisionToBureau.get(dv)||''); return {...o, division:dv, bureau:bc}; }); plotMarkers(dataRows); toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`); } catch(e){ console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e&&e.message?e.message:e)); } }
-
-// ===== Startup =====
-window.addEventListener('DOMContentLoaded', ()=>{ init(); document.getElementById('locBtn').onclick=()=>{ if(watchId==null) startWatch(); else stopWatch(); }; document.getElementById('reloadBtn').onclick=init; document.getElementById('search').addEventListener('input',e=>plotMarkers(filterRows(e.target.value))); });
+}
+window.addEventListener('DOMContentLoaded', ()=>{
+  init();
+  document.getElementById('locBtn').onclick=()=>{ if(watchId==null) startWatch(); else stopWatch(); };
+  document.getElementById('reloadBtn').onclick=init;
+  document.getElementById('search').addEventListener('input',e=>plotMarkers(filterRows(e.target.value)));
+});
 </script>
 </body>
 </html>
