@@ -48,27 +48,29 @@
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
 // ===== Config: ใส่ URL CSV ของแต่ละชีต =====
-const INTERSECTION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=1203231005&single=true&output=csv"; // ชีต: Intersection (name, station, radio, lat, lng)
-const STATION_CSV_URL      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=705908281&single=true&output=csv";      // ชีต: Station (station_name, division_name)
-const DIVISION_CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=940717141&single=true&output=csv";     // ชีต: Division (division_name, bureau_name)
-const BUREAU_CSV_URL       = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=193057135&single=true&output=csv";       // ชีต: Bureau (bureau_name)
+const INTERSECTION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=1203231005&single=true&output=csv"; // Intersection: name, station, lat, lng
+const STATION_CSV_URL      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=705908281&single=true&output=csv";      // Station: station_name, division_name, radio
+const DIVISION_CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=940717141&single=true&output=csv";     // Division: division_name, bureau_name
+const BUREAU_CSV_URL       = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=193057135&single=true&output=csv";       // Bureau: bureau_name
 
 // ===== Column mappings (ยอมรับชื่อหัวคอลัมน์ใกล้เคียง) =====
 const COLS = { // Intersection
   name:["name","ชื่อแยก","junction"],
   station:["station","สน./สภ.","สน.","สภ."],
-  radio:["radio","คลื่นวิทยุ","ความถี่"],
   lat:["lat","latitude","ละติจูด"],
   lng:["lng","lon","longitude","ลองจิจูด"]
 };
 const COLS_STATION = {
   station_name:["station_name","station","สน.","สภ."],
-  division_name:["division_name","division","บก."]
+  division_name:["division_name","division","บก."],
+  radio:["radio","คลื่นวิทยุ","ความถี่"]
 };
+
 const COLS_DIVISION = {
   division_name:["division_name","division","บก."],
   bureau_name:["bureau_name","bureau","บช.","ภ."]
 };
+
 const COLS_BUREAU = { bureau_name:["bureau_name","bureau","บช.","ภ."] };
 
 // ===== สีตาม บก. =====
@@ -89,23 +91,70 @@ function toNum(v){ if(v==null) return NaN; let s=String(v).trim(); if((s.split('
 function loadCsv(url){ return new Promise((resolve,reject)=>{ if(!url||url.startsWith('PUT_')) return reject(new Error('ยังไม่ได้ตั้งค่า URL CSV')); Papa.parse(url,{download:true,complete:r=>resolve(r.data),error:err=>reject(err)}); }); }
 
 async function loadAllCSVs(){
-  toast('กำลังดึงหลายชีต...');
+  toast('กำลังดึง 4 ชีต...');
   const [rowsI, rowsS, rowsD, rowsB] = await Promise.all([
-    loadCsv(INTERSECTION_CSV_URL), loadCsv(STATION_CSV_URL), loadCsv(DIVISION_CSV_URL), loadCsv(BUREAU_CSV_URL)
+    loadCsv(INTERSECTION_CSV_URL),
+    loadCsv(STATION_CSV_URL),
+    loadCsv(DIVISION_CSV_URL),
+    loadCsv(BUREAU_CSV_URL)
   ]);
+
   // Intersection
   const { idx: idxI } = parseCsvRows(rowsI, COLS);
-  const intersections=[]; let badI=0;
-  for(let i=1;i<rowsI.length;i++){ const r=rowsI[i]; if(!r||r.length===0) continue; const lat=toNum(r[idxI.lat]); const lng=toNum(r[idxI.lng]); if(isNaN(lat)||isNaN(lng)){ badI++; continue; } intersections.push({ name:r[idxI.name], station:r[idxI.station], radio:r[idxI.radio], lat, lng }); }
-  // Station map
-  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION); const stationToDivision=new Map();
-  for(let i=1;i<rowsS.length;i++){ const r=rowsS[i]; if(!r||r.length===0) continue; const st=norm(r[idxS.station_name]); const dv=norm(r[idxS.division_name]); if(st) stationToDivision.set(st,dv); }
-  // Division map
-  const { idx: idxD } = parseCsvRows(rowsD, COLS_DIVISION); const divisionToBureau=new Map();
-  for(let i=1;i<rowsD.length;i++){ const r=rowsD[i]; if(!r||r.length===0) continue; const dv=norm(r[idxD.division_name]); const bc=norm(r[idxD.bureau_name]); if(dv) divisionToBureau.set(dv,bc); }
-  // Bureau list (optional)
+  const intersections = []; let badI=0;
+  for(let i=1;i<rowsI.length;i++){
+    const r = rowsI[i]; if(!r||r.length===0) continue;
+    const lat = toNum(r[idxI.lat]); const lng = toNum(r[idxI.lng]);
+    if(isNaN(lat)||isNaN(lng)){ badI++; continue; }
+    intersections.push({ name:r[idxI.name], station:r[idxI.station], lat, lng });
+  }
+
+  // Station: station_name -> { division_name, radio }
+  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION);
+  const stationInfo = new Map();
+  for(let i=1;i<rowsS.length;i++){
+    const r = rowsS[i]; if(!r||r.length===0) continue;
+    const st = norm(r[idxS.station_name]);
+    const dv = norm(r[idxS.division_name]);
+    const ra = norm(r[idxS.radio]);
+    if(st) stationInfo.set(st, { division: dv, radio: ra });
+  }
+
+  // Division: division_name -> bureau_name
+  const { idx: idxD } = parseCsvRows(rowsD, COLS_DIVISION);
+  const divisionToBureau = new Map();
+  for(let i=1;i<rowsD.length;i++){
+    const r = rowsD[i]; if(!r||r.length===0) continue;
+    const dv = norm(r[idxD.division_name]);
+    const bc = norm(r[idxD.bureau_name]);
+    if(dv) divisionToBureau.set(dv, bc);
+  }
+
+  // Bureau (optional list)
   parseCsvRows(rowsB, COLS_BUREAU);
-  return { intersections, stationToDivision, divisionToBureau };
+
+  console.log('[CSV] intersections:', intersections.length, 'bad:', badI, 'stations:', stationInfo.size, 'divisions:', divisionToBureau.size);
+  return { intersections, stationInfo, divisionToBureau };
+} = parseCsvRows(rowsI, COLS);
+  const intersections=[]; let badI=0;
+  for(let i=1;i<rowsI.length;i++){
+    const r=rowsI[i]; if(!r||r.length===0) continue;
+    const lat=toNum(r[idxI.lat]); const lng=toNum(r[idxI.lng]);
+    if(isNaN(lat)||isNaN(lng)){ badI++; continue; }
+    intersections.push({ name:r[idxI.name], station:r[idxI.station], lat, lng });
+  }
+  // Station map: station_name -> { division, radio }
+  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION);
+  const stationInfo = new Map();
+  for(let i=1;i<rowsS.length;i++){
+    const r=rowsS[i]; if(!r||r.length===0) continue;
+    const st = norm(r[idxS.station_name]);
+    const dv = norm(r[idxS.division_name]);
+    const ra = norm(r[idxS.radio]);
+    if(st) stationInfo.set(st, { division: dv, radio: ra });
+  }
+  console.log('[CSV] intersections:', intersections.length, 'bad:', badI, 'stations:', stationInfo.size);
+  return { intersections, stationInfo };
 }
 
 // ===== Map & UI =====
@@ -146,7 +195,32 @@ function stopWatch(){ if(watchId!=null){ navigator.geolocation.clearWatch(watchI
 let legendControl=null;
 function ensureMap(){ if(map) return; map=L.map('map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map); map.setView([13.7563,100.5018],11); legendControl=L.control({position:'bottomright'}); legendControl.onAdd=function(){ const div=L.DomUtil.create('div','legend'); div.innerHTML=`<b>สีตาม บก.</b><div id="legendList"></div>`; return div; }; legendControl.addTo(map); }
 
-async function init(){ ensureMap(); try{ const {intersections,stationToDivision,divisionToBureau}=await loadAllCSVs(); dataRows=intersections.map(o=>{ const st=normalizeUnitText(o.station); const dv=normalizeUnitText(stationToDivision.get(st)||''); const bc=normalizeUnitText(divisionToBureau.get(dv)||''); return {...o, division:dv, bureau:bc}; }); plotMarkers(dataRows); toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`); } catch(e){ console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e&&e.message?e.message:e)); } }
+async function init(){
+  ensureMap();
+  try{
+    const { intersections, stationInfo, divisionToBureau } = await loadAllCSVs();
+    dataRows = intersections.map(o=>{
+      const info = stationInfo.get(norm(o.station)) || {};
+      const dv = info.division || '';
+      const bc = divisionToBureau.get(norm(dv)) || '';
+      return { ...o, division: dv, bureau: bc, radio: info.radio || '' };
+    });
+    plotMarkers(dataRows);
+    toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`);
+  }catch(e){
+    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e?.message||''));
+  }
+} = await loadAllCSVs();
+    dataRows = intersections.map(o=>{
+      const info = stationInfo.get(norm(o.station)) || {};
+      return { ...o, division: info.division || '', radio: info.radio || '' };
+    });
+    plotMarkers(dataRows);
+    toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`);
+  }catch(e){
+    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e?.message||''));
+  }
+}=await loadAllCSVs(); dataRows=intersections.map(o=>{ const st=normalizeUnitText(o.station); const dv=normalizeUnitText(stationToDivision.get(st)||''); const bc=normalizeUnitText(divisionToBureau.get(dv)||''); return {...o, division:dv, bureau:bc}; }); plotMarkers(dataRows); toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`); } catch(e){ console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e&&e.message?e.message:e)); } }
 
 // ===== Startup =====
 window.addEventListener('DOMContentLoaded', ()=>{ init(); document.getElementById('locBtn').onclick=()=>{ if(watchId==null) startWatch(); else stopWatch(); }; document.getElementById('reloadBtn').onclick=init; document.getElementById('search').addEventListener('input',e=>plotMarkers(filterRows(e.target.value))); });
