@@ -22,6 +22,12 @@
   .user-dot{width:18px;height:18px;border-radius:50%;background:#2b7bff;box-shadow:0 0 0 3px rgba(43,123,255,.25);position:relative}
 .user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
 @keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+.user-dot{width:18px;height:18px;border-radius:50%;background:#2b7bff;box-shadow:0 0 0 3px rgba(43,123,255,.25);position:relative}
+.user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+.legend{background:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);font-size:12px}
+.legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
+.legend .sw{width:12px;height:12px;border-radius:3px;border:1px solid #333}
 </style>
 </head>
 <body>
@@ -61,6 +67,41 @@ const COLS = {
   lng: ["longitude","lng","lon","ลองจิจูด"]
 };
 
+// ====== กฎ Normalization และสีตาม บก. ======
+const HIER = {
+  juncToStation: { 'ปทุมวัน': 'สน.ปทุมวัน' },
+  stationToDivision: { 'สน.ปทุมวัน': 'บก.น.6' },
+  divisionToBureau: { 'บก.น.6': 'บช.น.' }
+};
+const DIVISION_COLORS = {
+  'บก.น.1':'#e74c3c','บก.น.2':'#e67e22','บก.น.3':'#f1c40f','บก.น.4':'#2ecc71',
+  'บก.น.5':'#1abc9c','บก.น.6':'#3498db','บก.น.7':'#9b59b6','บก.น.8':'#34495e','บก.น.9':'#16a085'
+};
+function normalizeUnitText(s){
+  s = norm(s); if(!s) return '';
+  // รวมช่องว่างซ้อน
+  s = s.split(' ').filter(Boolean).join(' ');
+  return s;
+}
+function getDivisionColor(divName){
+  const d = normalizeUnitText(divName);
+  return DIVISION_COLORS[d] || '#7f8c8d';
+}
+function normalizeHierarchy(row){
+  const name = norm(row.name);
+  let st = normalizeUnitText(row.station);
+  if(!st && name && HIER.juncToStation[name]) st = normalizeUnitText(HIER.juncToStation[name]);
+  let dv = normalizeUnitText(row.division);
+  if(!dv && st && HIER.stationToDivision[st]) dv = normalizeUnitText(HIER.stationToDivision[st]);
+  let bc = normalizeUnitText(row.bureau);
+  if(!bc && dv && HIER.divisionToBureau[dv]) bc = normalizeUnitText(HIER.divisionToBureau[dv]);
+  row.station = st || row.station;
+  row.division = dv || row.division;
+  row.bureau = bc || row.bureau;
+  return row;
+}
+// ====== /Normalization ======
+
 /*** โค้ดหลัก ***/
 let map, allMarkers = [], dataRows = [], userMarker = null, userCircle = null, watchId = null, following = true; const userIcon = L.divIcon({ className: 'user-dot', iconSize: [18,18] }); 
 
@@ -96,6 +137,17 @@ function buildPopup(r){
   const lines = [
     `<div style="font-weight:600;font-size:15px;">${r.name||"(ไม่มีชื่อ)"}</div>`,
     `<div style="margin:6px 0;">`
+      + (r.station?`<span class="pill">${normalizeUnitText(r.station)}</span>`:``)
+      + (r.division?`<span class="pill">${normalizeUnitText(r.division)}</span>`:``)
+      + (r.bureau?`<span class="pill">${normalizeUnitText(r.bureau)}</span>`:``)
+    + `</div>`,
+    r.radio?`<div>📻 <b>คลื่น:</b> ${r.radio}</div>`:``,
+    (r.station||r.division||r.bureau)?`<div>🧭 <b>ลำดับพื้นที่:</b> ${[r.name?`"${r.name}"`:null, r.station, r.division, r.bureau].filter(Boolean).map(x=>normalizeUnitText(x)).join(' → ')}</div>`:``,
+    `<div>📌 <b>พิกัด:</b> ${r.lat?.toFixed? r.lat.toFixed(6):r.lat}, ${r.lng?.toFixed? r.lng.toFixed(6):r.lng}</div>`
+  ].join('');
+  return lines;
+}</div>`,
+    `<div style="margin:6px 0;">`
       + (r.station?`<span class="pill">${r.station}</span>`:``)
       + (r.division?`<span class="pill">${r.division}</span>`:``)
       + (r.bureau?`<span class="pill">${r.bureau}</span>`:``)
@@ -116,10 +168,18 @@ function plotMarkers(rows){
   const grp = L.featureGroup();
   rows.forEach(r => {
     if(isFinite(r.lat) && isFinite(r.lng)){
-      const m = L.marker([r.lat, r.lng]).bindPopup(buildPopup(r));
+      const color = getDivisionColor(r.division);
+      const m = L.circleMarker([r.lat, r.lng], {
+        radius: 8, weight: 1, color: '#333', fillColor: color, fillOpacity: 0.95
+      }).bindPopup(buildPopup(r));
       m.addTo(grp);
       allMarkers.push(m);
     }
+  });
+  grp.addTo(map);
+  if (rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
+  updateLegend(rows);
+}
   });
   grp.addTo(map);
   if (rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
@@ -179,9 +239,8 @@ for (let i=1;i<rows.length;i++){
   });
 }
 console.log('[CSV] total rows:', rows.length-1, 'valid coords:', out.length, 'skipped:', bad);
-if(out.length===0){
-  throw new Error('พบ 0 จุดที่มีพิกัดถูกต้อง — โปรดตรวจหัวคอลัมน์และรูปแบบตัวเลขของ Latitude/Longitude');
-}
+// เติมโครงสร้างสายบังคับบัญชาตามกฎ
+for(let i=0;i<out.length;i++){ out[i] = normalizeHierarchy(out[i]); }
 resolve(out);
 
         } catch(err){ reject(err); }
@@ -191,10 +250,29 @@ resolve(out);
   });
 }
 
+let legendControl = null;
 function ensureMap(){
   if(map) return;
   map = L.map('map');
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  map.setView([13.7563, 100.5018], 11); // กทม. เป็นค่าเริ่มต้น
+
+  legendControl = L.control({ position: 'bottomright' });
+  legendControl.onAdd = function(){
+    const div = L.DomUtil.create('div','legend');
+    div.innerHTML = '<b>สีตาม บก.</b><div id="legendList"></div>';
+    return div;
+  };
+  legendControl.addTo(map);
+}
+function updateLegend(rows){
+  const el = document.getElementById('legendList');
+  if(!el) return;
+  const divs = Array.from(new Set(rows.map(r=>normalizeUnitText(r.division)).filter(Boolean)));
+  el.innerHTML = divs.map(d=>`<div class="row"><span class="sw" style="background:${getDivisionColor(d)}"></span>${d}</div>`).join('');
+}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap'
   }).addTo(map);
   map.setView([13.7563, 100.5018], 11); // กทม. เป็นค่าเริ่มต้น
