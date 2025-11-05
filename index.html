@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>แผนที่ชื่อแยก</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #app { height: 100%; display: flex; flex-direction: column; }
+    header { padding: 10px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); z-index: 1000; background: #fff; }
+    header h1 { margin: 0; font-size: 18px; }
+    header .sub { font-size: 12px; color: #666; }
+    #map { flex: 1; }
+    .leaflet-popup-content { font-size: 14px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f2f4f7; margin-right:6px; font-size:12px; }
+    .ctrl { display:flex; gap:8px; align-items:center; margin-top:6px; }
+    .ctrl input { flex:1; padding:8px 10px; border:1px solid #e3e6eb; border-radius:10px; font-size:14px; }
+    .ctrl button { padding:8px 10px; border:1px solid #e3e6eb; background:#fff; border-radius:10px; font-size:14px; }
+    .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background:#111; color:#fff; padding:8px 12px; border-radius:12px; font-size:12px; opacity:0.9; z-index: 2000; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>แผนที่ชื่อแยก</h1>
+    <div class="sub">ดูหมุดสถานี/ชื่อแยก + พิกัดปัจจุบันของคุณ (เฉพาะทีมงาน)</div>
+    <div class="ctrl">
+      <input id="search" placeholder="ค้นหา: ชื่อแยก / สน. / บก. / บช. / คลื่น" />
+      <button id="locBtn">ตำแหน่งฉัน</button>
+      <button id="reloadBtn">รีโหลดข้อมูล</button>
+    </div>
+  </header>
+  <div id="map"></div>
+</div>
+<div id="toast" class="toast" style="display:none"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- PapaParse (ไว้แปลง CSV จาก Google Sheets) -->
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+/*** ตั้งค่า ***/
+// 1) ใส่ลิงก์ CSV จาก Google Sheets (File > Share > Publish to web > เลือกแผ่นงานเป็น CSV) หรือใส่ไฟล์ CSV ใน repo แล้วใช้ลิงก์ RAW
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=1203231005&single=true&output=csv";
+
+// 2) กำหนด mapping ชื่อคอลัมน์ในชีต -> key ในแอป
+// ชื่อคอลัมน์ในชีตต้องตรงตามนี้ (ไม่สนตัวพิมพ์เล็กใหญ่)
+const COLS = {
+  name: "ชื่อแยก",
+  station: "สน./สภ.",
+  division: "บก.",
+  bureau: "บช.",
+  radio: "คลื่นวิทยุ",
+  lat: "latitude",
+  lng: "longitude"
+};
+
+/*** โค้ดหลัก ***/
+let map, allMarkers = [], dataRows = [], userMarker = null, userCircle = null; 
+
+function toast(msg, ms=2000){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display='block';
+  setTimeout(()=>{ el.style.display='none'; }, ms);
+}
+
+function norm(s){ return (s||"").toString().trim(); }
+function same(a,b){ return norm(a).toLowerCase()===norm(b).toLowerCase(); }
+function colIdx(headers, name){
+  return headers.findIndex(h => same(h, name));
+}
+
+function buildPopup(r){
+  const lines = [
+    `<div style="font-weight:600;font-size:15px;">${r.name||"(ไม่มีชื่อ)"}</div>`,
+    `<div style="margin:6px 0;">`
+      + (r.station?`<span class="pill">${r.station}</span>`:``)
+      + (r.division?`<span class="pill">${r.division}</span>`:``)
+      + (r.bureau?`<span class="pill">${r.bureau}</span>`:``)
+    + `</div>`,
+    r.radio?`<div>📻 <b>คลื่น:</b> ${r.radio}</div>`:``,
+    `<div>🧭 <b>พิกัด:</b> ${r.lat?.toFixed? r.lat.toFixed(6):r.lat}, ${r.lng?.toFixed? r.lng.toFixed(6):r.lng}</div>`
+  ].join('');
+  return lines;
+}
+
+function clearMarkers(){
+  allMarkers.forEach(m => map.removeLayer(m));
+  allMarkers = [];
+}
+
+function plotMarkers(rows){
+  clearMarkers();
+  const grp = L.featureGroup();
+  rows.forEach(r => {
+    if(isFinite(r.lat) && isFinite(r.lng)){
+      const m = L.marker([r.lat, r.lng]).bindPopup(buildPopup(r));
+      m.addTo(grp);
+      allMarkers.push(m);
+    }
+  });
+  grp.addTo(map);
+  if (rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
+}
+
+function filterRows(q){
+  if(!q) return dataRows;
+  const s = q.toLowerCase();
+  return dataRows.filter(r => [r.name,r.station,r.division,r.bureau,r.radio].some(v => (v||"").toLowerCase().includes(s)));
+}
+
+async function loadCSV(){
+  toast('กำลังดึงข้อมูล...');
+  return new Promise((resolve, reject) => {
+    Papa.parse(SHEET_CSV_URL, {
+      download: true,
+      complete: (res) => {
+        try {
+          const rows = res.data;
+          if (!rows || rows.length < 2) throw new Error('ไม่มีข้อมูลใน CSV');
+          const headers = rows[0].map(h => norm(h).toLowerCase());
+          const idx = {
+            name: colIdx(headers, COLS.name),
+            station: colIdx(headers, COLS.station),
+            division: colIdx(headers, COLS.division),
+            bureau: colIdx(headers, COLS.bureau),
+            radio: colIdx(headers, COLS.radio),
+            lat: colIdx(headers, COLS.lat),
+            lng: colIdx(headers, COLS.lng)
+          };
+          const out = [];
+          for (let i=1;i<rows.length;i++){
+            const r = rows[i];
+            if(!r || r.length===0) continue;
+            const lat = parseFloat(r[idx.lat]);
+            const lng = parseFloat(r[idx.lng]);
+            out.push({
+              name: r[idx.name],
+              station: r[idx.station],
+              division: r[idx.division],
+              bureau: r[idx.bureau],
+              radio: r[idx.radio],
+              lat, lng
+            });
+          }
+          resolve(out.filter(o => !(isNaN(o.lat)||isNaN(o.lng))));
+        } catch(err){ reject(err); }
+      },
+      error: (err) => reject(err)
+    });
+  });
+}
+
+function ensureMap(){
+  if(map) return;
+  map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  map.setView([13.7563, 100.5018], 11); // กทม. เป็นค่าเริ่มต้น
+}
+
+function locateOnce(){
+  if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    // ลบของเดิม
+    if(userMarker){ map.removeLayer(userMarker); userMarker=null; }
+    if(userCircle){ map.removeLayer(userCircle); userCircle=null; }
+    userMarker = L.marker([latitude, longitude], { title: 'ตำแหน่งของฉัน' }).bindPopup('ตำแหน่งของฉัน');
+    userMarker.addTo(map);
+    userCircle = L.circle([latitude, longitude], { radius: accuracy||50 });
+    userCircle.addTo(map);
+    map.setView([latitude, longitude], 14);
+  }, err => {
+    toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง');
+  }, { enableHighAccuracy:true, timeout:8000 });
+}
+
+async function init(){
+  ensureMap();
+  try{
+    dataRows = await loadCSV();
+    plotMarkers(dataRows);
+    toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`);
+  }catch(e){
+    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ');
+  }
+}
+
+// UI events
+window.addEventListener('DOMContentLoaded', () => {
+  init();
+  document.getElementById('locBtn').onclick = locateOnce;
+  document.getElementById('reloadBtn').onclick = init;
+  const search = document.getElementById('search');
+  search.addEventListener('input', (e)=>{
+    const rows = filterRows(e.target.value);
+    plotMarkers(rows);
+  });
+});
+</script>
+</body>
+</html>
