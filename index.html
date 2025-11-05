@@ -48,13 +48,14 @@ const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCC
 // 2) กำหนด mapping ชื่อคอลัมน์ในชีต -> key ในแอป
 // ชื่อคอลัมน์ในชีตต้องตรงตามนี้ (ไม่สนตัวพิมพ์เล็กใหญ่)
 const COLS = {
-  name: "ชื่อแยก",
-  station: "สน./สภ.",
-  division: "บก.",
-  bureau: "บช.",
-  radio: "คลื่นวิทยุ",
-  lat: "latitude",
-  lng: "longitude"
+  // รองรับหลายชื่อหัวคอลัมน์อัตโนมัติ
+  name: ["ชื่อแยก","ชื่อ จุด","junction","name"],
+  station: ["สน./สภ.","สน.","สภ.","สถานี","station"],
+  division: ["บก.","กองบังคับการ","division"],
+  bureau: ["บช.","กองบัญชาการ","ภ.","bureau","region"],
+  radio: ["คลื่นวิทยุ","วิทยุ","ความถี่","radio","frequency"],
+  lat: ["latitude","lat","ละติจูด"],
+  lng: ["longitude","lng","lon","ลองจิจูด"]
 };
 
 /*** โค้ดหลัก ***/
@@ -68,9 +69,25 @@ function toast(msg, ms=2000){
 
 function norm(s){ return (s||"").toString().trim(); }
 function same(a,b){ return norm(a).toLowerCase()===norm(b).toLowerCase(); }
-function colIdx(headers, name){
-  return headers.findIndex(h => same(h, name));
+function normalizeHeader(h){
+  const s = norm(h).toLowerCase();
+  // ลบช่องว่างและอักขระพิเศษที่พบบ่อย
+  const rm = [' ','.','-','_','(',')','/'];
+  let out = s;
+  rm.forEach(ch=>{ out = out.split(ch).join(''); });
+  out = out.replace('กองบังคับการ','บก').replace('กองบัญชาการ','บช').replace('สน.สภ.','สน.สภ');
+  return out;
 }
+function colIdxByAliases(headers, aliases){
+  const H = headers.map(normalizeHeader);
+  for(const a of aliases){
+    const key = normalizeHeader(a);
+    const i = H.findIndex(h=>h===key);
+    if(i!==-1) return i;
+  }
+  return -1;
+}
+
 
 function buildPopup(r){
   const lines = [
@@ -120,32 +137,50 @@ async function loadCSV(){
         try {
           const rows = res.data;
           if (!rows || rows.length < 2) throw new Error('ไม่มีข้อมูลใน CSV');
-          const headers = rows[0].map(h => norm(h).toLowerCase());
+          const headers = rows[0].map(h => h);
           const idx = {
-            name: colIdx(headers, COLS.name),
-            station: colIdx(headers, COLS.station),
-            division: colIdx(headers, COLS.division),
-            bureau: colIdx(headers, COLS.bureau),
-            radio: colIdx(headers, COLS.radio),
-            lat: colIdx(headers, COLS.lat),
-            lng: colIdx(headers, COLS.lng)
-          };
+  name: colIdxByAliases(headers, COLS.name),
+  station: colIdxByAliases(headers, COLS.station),
+  division: colIdxByAliases(headers, COLS.division),
+  bureau: colIdxByAliases(headers, COLS.bureau),
+  radio: colIdxByAliases(headers, COLS.radio),
+  lat: colIdxByAliases(headers, COLS.lat),
+  lng: colIdxByAliases(headers, COLS.lng)
+};
           const out = [];
-          for (let i=1;i<rows.length;i++){
-            const r = rows[i];
-            if(!r || r.length===0) continue;
-            const lat = parseFloat(r[idx.lat]);
-            const lng = parseFloat(r[idx.lng]);
-            out.push({
-              name: r[idx.name],
-              station: r[idx.station],
-              division: r[idx.division],
-              bureau: r[idx.bureau],
-              radio: r[idx.radio],
-              lat, lng
-            });
-          }
-          resolve(out.filter(o => !(isNaN(o.lat)||isNaN(o.lng))));
+let bad = 0;
+function toNum(v){
+  if(v==null) return NaN;
+  let s = String(v).trim();
+  // รองรับ 13,7563 → 13.7563
+  if((s.split(',').length-1)===1 && s.indexOf('.')===-1){ s = s.replace(',', '.'); }
+  // เก็บเฉพาะตัวเลข จุด ลบ
+  const allowed = '0123456789.-';
+  s = Array.from(s).filter(ch => allowed.indexOf(ch)!==-1).join('');
+  const num = parseFloat(s);
+  return isNaN(num)? NaN : num;
+}
+for (let i=1;i<rows.length;i++){
+  const r = rows[i];
+  if(!r || r.length===0) continue;
+  const lat = toNum(r[idx.lat]);
+  const lng = toNum(r[idx.lng]);
+  if(isNaN(lat) || isNaN(lng)){ bad++; continue; }
+  out.push({
+    name: r[idx.name],
+    station: r[idx.station],
+    division: r[idx.division],
+    bureau: r[idx.bureau],
+    radio: r[idx.radio],
+    lat, lng
+  });
+}
+console.log('[CSV] total rows:', rows.length-1, 'valid coords:', out.length, 'skipped:', bad);
+if(out.length===0){
+  throw new Error('พบ 0 จุดที่มีพิกัดถูกต้อง — โปรดตรวจหัวคอลัมน์และรูปแบบตัวเลขของ Latitude/Longitude');
+}
+resolve(out);
+
         } catch(err){ reject(err); }
       },
       error: (err) => reject(err)
