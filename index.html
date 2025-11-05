@@ -7,27 +7,24 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
-    html, body { height: 100%; margin: 0; }
-    #app { height: 100%; display: flex; flex-direction: column; }
-    header { padding: 10px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); z-index: 1000; background: #fff; }
-    header h1 { margin: 0; font-size: 18px; }
-    header .sub { font-size: 12px; color: #666; }
-    #map { flex: 1; }
-    .leaflet-popup-content { font-size: 14px; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f2f4f7; margin-right:6px; font-size:12px; }
-    .ctrl { display:flex; gap:8px; align-items:center; margin-top:6px; }
-    .ctrl input { flex:1; padding:8px 10px; border:1px solid #e3e6eb; border-radius:10px; font-size:14px; }
-    .ctrl button { padding:8px 10px; border:1px solid #e3e6eb; background:#fff; border-radius:10px; font-size:14px; }
-    .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background:#111; color:#fff; padding:8px 12px; border-radius:12px; font-size:12px; opacity:0.9; z-index: 2000; }
+  html, body { height: 100%; margin: 0; }
+  #app { height: 100%; display: flex; flex-direction: column; }
+  header { padding: 10px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); z-index: 1000; background: #fff; }
+  header h1 { margin: 0; font-size: 18px; }
+  header .sub { font-size: 12px; color: #666; }
+  #map { flex: 1; }
+  .leaflet-popup-content { font-size: 14px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f2f4f7; margin-right:6px; font-size:12px; }
+  .ctrl { display:flex; gap:8px; align-items:center; margin-top:6px; }
+  .ctrl input { flex:1; padding:8px 10px; border:1px solid #e3e6eb; border-radius:10px; font-size:14px; }
+  .ctrl button { padding:8px 10px; border:1px solid #e3e6eb; background:#fff; border-radius:10px; font-size:14px; }
+  .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background:#111; color:#fff; padding:8px 12px; border-radius:12px; font-size:12px; opacity:0.9; z-index: 2000; }
   .user-dot{width:18px;height:18px;border-radius:50%;background:#2b7bff;box-shadow:0 0 0 3px rgba(43,123,255,.25);position:relative}
-.user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
-@keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
-.user-dot{width:18px;height:18px;border-radius:50%;background:#2b7bff;box-shadow:0 0 0 3px rgba(43,123,255,.25);position:relative}
-.user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
-@keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
-.legend{background:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);font-size:12px}
-.legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
-.legend .sw{width:12px;height:12px;border-radius:3px;border:1px solid #333}
+  .user-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(43,123,255,.45);animation:pulse 1.5s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+  .legend{background:#fff;padding:8px 10px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);font-size:12px}
+  .legend .row{display:flex;align-items:center;gap:6px;margin:4px 0}
+  .legend .sw{width:12px;height:12px;border-radius:3px;border:1px solid #333}
 </style>
 </head>
 <body>
@@ -50,416 +47,109 @@
 <!-- PapaParse (ไว้แปลง CSV จาก Google Sheets) -->
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-/*** ตั้งค่า ***/
-// 1) ใส่ลิงก์ CSV จาก Google Sheets (File > Share > Publish to web > เลือกแผ่นงานเป็น CSV) หรือใส่ไฟล์ CSV ใน repo แล้วใช้ลิงก์ RAW
-// ====== หลายชีตแบบใหม่ (ใส่ลิงก์ CSV ของแต่ละชีต) ======
+// ===== Config: ใส่ URL CSV ของแต่ละชีต =====
 const INTERSECTION_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=1203231005&single=true&output=csv"; // ชีต: Intersection (name, station, radio, lat, lng)
 const STATION_CSV_URL      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=705908281&single=true&output=csv";      // ชีต: Station (station_name, division_name)
 const DIVISION_CSV_URL     = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=940717141&single=true&output=csv";     // ชีต: Division (division_name, bureau_name)
 const BUREAU_CSV_URL       = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT01A1wCCz9aa_V7i2Hn6gmoOv-gjmc4hgJnqnX4vo6R9FMIlTwphEbJFS3y3F0OtBo0h_GBmtF56bL/pub?gid=193057135&single=true&output=csv";       // ชีต: Bureau (bureau_name)
 
-
-// 2) กำหนด mapping ชื่อคอลัมน์ในชีต -> key ในแอป
-// ชื่อคอลัมน์ในชีตต้องตรงตามนี้ (ไม่สนตัวพิมพ์เล็กใหญ่)
-// Mapping สำหรับชีต Intersection เท่านั้น
-const COLS = {
-  name: ["name","ชื่อแยก","junction"],
-  station: ["station","สน./สภ.","สน.","สภ."],
-  radio: ["radio","คลื่นวิทยุ","ความถี่"],
-  lat: ["lat","latitude","ละติจูด"],
-  lng: ["lng","lon","longitude","ลองจิจูด"]
+// ===== Column mappings (ยอมรับชื่อหัวคอลัมน์ใกล้เคียง) =====
+const COLS = { // Intersection
+  name:["name","ชื่อแยก","junction"],
+  station:["station","สน./สภ.","สน.","สภ."],
+  radio:["radio","คลื่นวิทยุ","ความถี่"],
+  lat:["lat","latitude","ละติจูด"],
+  lng:["lng","lon","longitude","ลองจิจูด"]
 };
-
-// Mapping สำหรับชีต Station
 const COLS_STATION = {
-  station_name: ["station_name","station","สน.","สภ."],
-  division_name: ["division_name","division","บก."]
+  station_name:["station_name","station","สน.","สภ."],
+  division_name:["division_name","division","บก."]
 };
-
-// Mapping สำหรับชีต Division
 const COLS_DIVISION = {
-  division_name: ["division_name","division","บก."],
-  bureau_name: ["bureau_name","bureau","บช.","ภ."]
+  division_name:["division_name","division","บก."],
+  bureau_name:["bureau_name","bureau","บช.","ภ."]
 };
+const COLS_BUREAU = { bureau_name:["bureau_name","bureau","บช.","ภ."] };
 
-// Mapping สำหรับชีต Bureau
-const COLS_BUREAU = {
-  bureau_name: ["bureau_name","bureau","บช.","ภ."]
-};
-
-// ====== กฎ Normalization และสีตาม บก. ======
-const HIER = {
-  juncToStation: { 'ปทุมวัน': 'สน.ปทุมวัน' },
-  stationToDivision: { 'สน.ปทุมวัน': 'บก.น.6' },
-  divisionToBureau: { 'บก.น.6': 'บช.น.' }
-};
+// ===== สีตาม บก. =====
 const DIVISION_COLORS = {
   'บก.น.1':'#e74c3c','บก.น.2':'#e67e22','บก.น.3':'#f1c40f','บก.น.4':'#2ecc71',
   'บก.น.5':'#1abc9c','บก.น.6':'#3498db','บก.น.7':'#9b59b6','บก.น.8':'#34495e','บก.น.9':'#16a085'
 };
-function normalizeUnitText(s){
-  s = norm(s); if(!s) return '';
-  // รวมช่องว่างซ้อน
-  s = s.split(' ').filter(Boolean).join(' ');
-  return s;
-}
-function getDivisionColor(divName){
-  const d = normalizeUnitText(divName);
-  return DIVISION_COLORS[d] || '#7f8c8d';
-}
-function normalizeHierarchy(row){
-  const name = norm(row.name);
-  let st = normalizeUnitText(row.station);
-  if(!st && name && HIER.juncToStation[name]) st = normalizeUnitText(HIER.juncToStation[name]);
-  let dv = normalizeUnitText(row.division);
-  if(!dv && st && HIER.stationToDivision[st]) dv = normalizeUnitText(HIER.stationToDivision[st]);
-  let bc = normalizeUnitText(row.bureau);
-  if(!bc && dv && HIER.divisionToBureau[dv]) bc = normalizeUnitText(HIER.divisionToBureau[dv]);
-  row.station = st || row.station;
-  row.division = dv || row.division;
-  row.bureau = bc || row.bureau;
-  return row;
-}
-// ====== /Normalization ======
 
-/*** โค้ดหลัก ***/
-let map, allMarkers = [], dataRows = [], userMarker = null, userCircle = null, watchId = null, following = true; const userIcon = L.divIcon({ className: 'user-dot', iconSize: [18,18] }); 
-
-function toast(msg, ms=2000){
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.style.display='block';
-  setTimeout(()=>{ el.style.display='none'; }, ms);
-}
-
+// ===== Utils =====
+function toast(msg, ms=2000){ const el=document.getElementById('toast'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none', ms); }
 function norm(s){ return (s||"").toString().trim(); }
-function same(a,b){ return norm(a).toLowerCase()===norm(b).toLowerCase(); }
-function normalizeHeader(h){
-  const s = norm(h).toLowerCase();
-  // ลบช่องว่างและอักขระพิเศษที่พบบ่อย
-  const rm = [' ','.','-','_','(',')','/'];
-  let out = s;
-  rm.forEach(ch=>{ out = out.split(ch).join(''); });
-  out = out.replace('กองบังคับการ','บก').replace('กองบัญชาการ','บช').replace('สน.สภ.','สน.สภ');
-  return out;
-}
-function colIdxByAliases(headers, aliases){
-  const H = headers.map(normalizeHeader);
-  for(const a of aliases){
-    const key = normalizeHeader(a);
-    const i = H.findIndex(h=>h===key);
-    if(i!==-1) return i;
-  }
-  return -1;
-}
+function normalizeUnitText(s){ s=norm(s); if(!s) return ''; return s.split(' ').filter(Boolean).join(' '); }
+function getDivisionColor(d){ d=normalizeUnitText(d); return DIVISION_COLORS[d]||'#7f8c8d'; }
 
-
-function buildPopup(r){
-  const lines = [
-    '<div style="font-weight:600;font-size:15px;">${r.name||"(ไม่มีชื่อ)"}</div>',
-    '<div style="margin:6px 0;">'
-      + (r.station?'<span class="pill">${normalizeUnitText(r.station)}</span>':'')
-      + (r.division?'<span class="pill">${normalizeUnitText(r.division)}</span>':'')
-      + (r.bureau?'<span class="pill">${normalizeUnitText(r.bureau)}</span>':'')
-    + '</div>',
-    r.radio?'<div>📻 <b>คลื่น:</b> ${r.radio}</div>':'',
-    (r.station||r.division||r.bureau) ? (()=>{ const chain = [ r.name ? '"'+r.name+'"' : null, r.station, r.division, r.bureau ].filter(Boolean).map(x=>normalizeUnitText(x)).join(' → '); return '<div>🧭 <b>ลำดับพื้นที่:</b> ${chain}</div>'; })() : '',
-    '<div>📌 <b>พิกัด:</b> ${r.lat?.toFixed? r.lat.toFixed(6):r.lat}, ${r.lng?.toFixed? r.lng.toFixed(6):r.lng}</div>'
-  ].join('');
-  return lines;
-}</div>',
-    '<div style="margin:6px 0;">'
-      + (r.station?'<span class="pill">${r.station}</span>':'')
-      + (r.division?'<span class="pill">${r.division}</span>':'')
-      + (r.bureau?'<span class="pill">${r.bureau}</span>':'')
-    + '</div>',
-    r.radio?'<div>📻 <b>คลื่น:</b> ${r.radio}</div>':'',
-    '<div>🧭 <b>พิกัด:</b> ${r.lat?.toFixed? r.lat.toFixed(6):r.lat}, ${r.lng?.toFixed? r.lng.toFixed(6):r.lng}</div>'
-  ].join('');
-  return lines;
-}
-
-function clearMarkers(){
-  allMarkers.forEach(m => map.removeLayer(m));
-  allMarkers = [];
-}
-
-function plotMarkers(rows){
-  clearMarkers();
-  const grp = L.featureGroup();
-  rows.forEach(r => {
-    if(isFinite(r.lat) && isFinite(r.lng)){
-      const color = getDivisionColor(r.division);
-      const m = L.circleMarker([r.lat, r.lng], {
-        radius: 8, weight: 1, color: '#333', fillColor: color, fillOpacity: 0.95
-      }).bindPopup(buildPopup(r));
-      m.addTo(grp);
-      allMarkers.push(m);
-    }
-  });
-  grp.addTo(map);
-  if (rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
-  updateLegend(rows);
-}
-  });
-  grp.addTo(map);
-  if (rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
-}
-
-function filterRows(q){
-  if(!q) return dataRows;
-  const s = q.toLowerCase();
-  return dataRows.filter(r => [r.name,r.station,r.division,r.bureau,r.radio].some(v => (v||"").toLowerCase().includes(s)));
-}
-
-function colIndexBy(headers, aliases){
-  const H = headers.map(h=>norm(h).toLowerCase());
-  for(const a of aliases){
-    const key = norm(a).toLowerCase();
-    const i = H.findIndex(h=>h===key);
-    if(i!==-1) return i;
-  }
-  return -1;
-}
-
-function parseCsvRows(rows, mapping){
-  if(!rows || rows.length<2) throw new Error('ไม่มีข้อมูลใน CSV');
-  const headers = rows[0];
-  const idx = {};
-  for(const k of Object.keys(mapping)){
-    idx[k] = colIndexBy(headers, mapping[k]);
-  }
-  return { rows, idx };
-}
-
-function toNum(v){
-  if(v==null) return NaN;
-  let s = String(v).trim();
-  if((s.split(',').length-1)===1 && s.indexOf('.')===-1){ s = s.replace(',', '.'); }
-  const allowed = '0123456789.-';
-  s = Array.from(s).filter(ch => allowed.indexOf(ch)!==-1).join('');
-  const num = parseFloat(s);
-  return isNaN(num)? NaN : num;
-}
-
-function loadCsv(url){
-  return new Promise((resolve,reject)=>{
-    Papa.parse(url, { download:true, complete:res=>resolve(res.data), error:err=>reject(err) });
-  });
-}
+function colIndexBy(headers, aliases){ const H=headers.map(h=>norm(h).toLowerCase()); for(const a of aliases){ const k=norm(a).toLowerCase(); const i=H.findIndex(h=>h===k); if(i!==-1) return i; } return -1; }
+function parseCsvRows(rows, mapping){ if(!rows||rows.length<2) throw new Error('ไม่มีข้อมูลใน CSV'); const headers=rows[0]; const idx={}; for(const k of Object.keys(mapping)){ idx[k]=colIndexBy(headers, mapping[k]); } return {rows, idx}; }
+function toNum(v){ if(v==null) return NaN; let s=String(v).trim(); if((s.split(',').length-1)===1 && s.indexOf('.')===-1) s=s.replace(',', '.'); const allowed='0123456789.-'; s=Array.from(s).filter(ch=>allowed.indexOf(ch)!==-1).join(''); const n=parseFloat(s); return isNaN(n)?NaN:n; }
+function loadCsv(url){ return new Promise((resolve,reject)=>{ if(!url||url.startsWith('PUT_')) return reject(new Error('ยังไม่ได้ตั้งค่า URL CSV')); Papa.parse(url,{download:true,complete:r=>resolve(r.data),error:err=>reject(err)}); }); }
 
 async function loadAllCSVs(){
   toast('กำลังดึงหลายชีต...');
   const [rowsI, rowsS, rowsD, rowsB] = await Promise.all([
-    loadCsv(INTERSECTION_CSV_URL),
-    loadCsv(STATION_CSV_URL),
-    loadCsv(DIVISION_CSV_URL),
-    loadCsv(BUREAU_CSV_URL)
+    loadCsv(INTERSECTION_CSV_URL), loadCsv(STATION_CSV_URL), loadCsv(DIVISION_CSV_URL), loadCsv(BUREAU_CSV_URL)
   ]);
-
   // Intersection
   const { idx: idxI } = parseCsvRows(rowsI, COLS);
-  const intersections = [];
-  let badI=0;
-  for(let i=1;i<rowsI.length;i++){
-    const r = rowsI[i]; if(!r||r.length===0) continue;
-    const lat = toNum(r[idxI.lat]);
-    const lng = toNum(r[idxI.lng]);
-    if(isNaN(lat)||isNaN(lng)){ badI++; continue; }
-    intersections.push({
-      name: r[idxI.name],
-      station: r[idxI.station],
-      radio: r[idxI.radio],
-      lat, lng
-    });
-  }
-
-  // Station map: station_name -> division_name
-  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION);
-  const stationToDivision = new Map();
-  for(let i=1;i<rowsS.length;i++){
-    const r = rowsS[i]; if(!r||r.length===0) continue;
-    const st = norm(r[idxS.station_name]);
-    const dv = norm(r[idxS.division_name]);
-    if(st) stationToDivision.set(st, dv);
-  }
-
-  // Division map: division_name -> bureau_name
-  const { idx: idxD } = parseCsvRows(rowsD, COLS_DIVISION);
-  const divisionToBureau = new Map();
-  for(let i=1;i<rowsD.length;i++){
-    const r = rowsD[i]; if(!r||r.length===0) continue;
-    const dv = norm(r[idxD.division_name]);
-    const bc = norm(r[idxD.bureau_name]);
-    if(dv) divisionToBureau.set(dv, bc);
-  }
-
-  // Bureau list (optional validate)
-  const { idx: idxB } = parseCsvRows(rowsB, COLS_BUREAU);
-  const bureauSet = new Set();
-  for(let i=1;i<rowsB.length;i++){
-    const r = rowsB[i]; if(!r||r.length===0) continue;
-    const bc = norm(r[idxB.bureau_name]);
-    if(bc) bureauSet.add(bc);
-  }
-
-  console.log('[CSV] intersections:', intersections.length, 'bad:', badI, 'stations:', stationToDivision.size, 'divisions:', divisionToBureau.size, 'bureaus:', bureauSet.size);
-  return { intersections, stationToDivision, divisionToBureau, bureauSet };
-};
-          const out = [];
-let bad = 0;
-function toNum(v){
-  if(v==null) return NaN;
-  let s = String(v).trim();
-  // รองรับ 13,7563 → 13.7563
-  if((s.split(',').length-1)===1 && s.indexOf('.')===-1){ s = s.replace(',', '.'); }
-  // เก็บเฉพาะตัวเลข จุด ลบ
-  const allowed = '0123456789.-';
-  s = Array.from(s).filter(ch => allowed.indexOf(ch)!==-1).join('');
-  const num = parseFloat(s);
-  return isNaN(num)? NaN : num;
-}
-for (let i=1;i<rows.length;i++){
-  const r = rows[i];
-  if(!r || r.length===0) continue;
-  const lat = toNum(r[idx.lat]);
-  const lng = toNum(r[idx.lng]);
-  if(isNaN(lat) || isNaN(lng)){ bad++; continue; }
-  out.push({
-    name: r[idx.name],
-    station: r[idx.station],
-    division: r[idx.division],
-    bureau: r[idx.bureau],
-    radio: r[idx.radio],
-    lat, lng
-  });
-}
-console.log('[CSV] total rows:', rows.length-1, 'valid coords:', out.length, 'skipped:', bad);
-// เติมโครงสร้างสายบังคับบัญชาตามกฎ
-for(let i=0;i<out.length;i++){ out[i] = normalizeHierarchy(out[i]); }
-resolve(out);
-
-        } catch(err){ reject(err); }
-      },
-      error: (err) => reject(err)
-    });
-  });
+  const intersections=[]; let badI=0;
+  for(let i=1;i<rowsI.length;i++){ const r=rowsI[i]; if(!r||r.length===0) continue; const lat=toNum(r[idxI.lat]); const lng=toNum(r[idxI.lng]); if(isNaN(lat)||isNaN(lng)){ badI++; continue; } intersections.push({ name:r[idxI.name], station:r[idxI.station], radio:r[idxI.radio], lat, lng }); }
+  // Station map
+  const { idx: idxS } = parseCsvRows(rowsS, COLS_STATION); const stationToDivision=new Map();
+  for(let i=1;i<rowsS.length;i++){ const r=rowsS[i]; if(!r||r.length===0) continue; const st=norm(r[idxS.station_name]); const dv=norm(r[idxS.division_name]); if(st) stationToDivision.set(st,dv); }
+  // Division map
+  const { idx: idxD } = parseCsvRows(rowsD, COLS_DIVISION); const divisionToBureau=new Map();
+  for(let i=1;i<rowsD.length;i++){ const r=rowsD[i]; if(!r||r.length===0) continue; const dv=norm(r[idxD.division_name]); const bc=norm(r[idxD.bureau_name]); if(dv) divisionToBureau.set(dv,bc); }
+  // Bureau list (optional)
+  parseCsvRows(rowsB, COLS_BUREAU);
+  return { intersections, stationToDivision, divisionToBureau };
 }
 
-let legendControl = null;
-function ensureMap(){
-  if(map) return;
-  map = L.map('map');
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-  map.setView([13.7563, 100.5018], 11); // กทม. เป็นค่าเริ่มต้น
+// ===== Map & UI =====
+let map, allMarkers=[], dataRows=[], userMarker=null, userCircle=null, watchId=null, following=true;
+const userIcon = L.divIcon({ className:'user-dot', iconSize:[18,18] });
 
-  legendControl = L.control({ position: 'bottomright' });
-  legendControl.onAdd = function(){
-    const div = L.DomUtil.create('div','legend');
-    div.innerHTML = '<b>สีตาม บก.</b><div id="legendList"></div>';
-    return div;
-  };
-  legendControl.addTo(map);
-}
-function updateLegend(rows){
-  const el = document.getElementById('legendList');
-  if(!el) return;
-  const divs = Array.from(new Set(rows.map(r=>normalizeUnitText(r.division)).filter(Boolean)));
-  el.innerHTML = divs.map(d=>'<div class="row"><span class="sw" style="background:${getDivisionColor(d)}"></span>${d}</div>').join('');
-}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
-  map.setView([13.7563, 100.5018], 11); // กทม. เป็นค่าเริ่มต้น
+function buildPopup(r){
+  const chain = [ r.name ? '"'+r.name+'"' : null, r.station, r.division, r.bureau ].filter(Boolean).map(x=>normalizeUnitText(x)).join(' → ');
+  return [
+    `<div style="font-weight:600;font-size:15px;">${r.name||"(ไม่มีชื่อ)"}</div>`,
+    `<div style="margin:6px 0;">`
+      + (r.station?`<span class="pill">${normalizeUnitText(r.station)}</span>`:``)
+      + (r.division?`<span class="pill">${normalizeUnitText(r.division)}</span>`:``)
+      + (r.bureau?`<span class="pill">${normalizeUnitText(r.bureau)}</span>`:``)
+    + `</div>`,
+    r.radio?`<div>📻 <b>คลื่น:</b> ${r.radio}</div>`:``,
+    chain?`<div>🧭 <b>ลำดับพื้นที่:</b> ${chain}</div>`:``,
+    `<div>📌 <b>พิกัด:</b> ${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}</div>`
+  ].join('');
 }
 
-function locateOnce(){
-  if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; }
-  navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude, longitude, accuracy } = pos.coords;
-    // ลบของเดิม
-    if(userMarker){ map.removeLayer(userMarker); userMarker=null; }
-    if(userCircle){ map.removeLayer(userCircle); userCircle=null; }
-    userMarker = L.marker([latitude, longitude], { title: 'ตำแหน่งของฉัน' }).bindPopup('ตำแหน่งของฉัน');
-    userMarker.addTo(map);
-    userCircle = L.circle([latitude, longitude], { radius: accuracy||50 });
-    userCircle.addTo(map);
-    map.setView([latitude, longitude], 14);
-  }, err => {
-    toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง');
-  }, { enableHighAccuracy:true, timeout:8000 });
+function clearMarkers(){ allMarkers.forEach(m=>map.removeLayer(m)); allMarkers=[]; }
+function plotMarkers(rows){
+  clearMarkers();
+  const grp=L.featureGroup();
+  rows.forEach(r=>{ if(isFinite(r.lat)&&isFinite(r.lng)){ const m=L.circleMarker([r.lat,r.lng],{radius:8,weight:1,color:'#333',fillColor:getDivisionColor(r.division),fillOpacity:0.95}).bindPopup(buildPopup(r)); m.addTo(grp); allMarkers.push(m);} });
+  grp.addTo(map); if(rows.length){ map.fitBounds(grp.getBounds().pad(0.15)); }
+  updateLegend(rows);
 }
+function updateLegend(rows){ const el=document.getElementById('legendList'); if(!el) return; const divs=Array.from(new Set(rows.map(r=>normalizeUnitText(r.division)).filter(Boolean))); el.innerHTML=divs.map(d=>`<div class="row"><span class="sw" style="background:${getDivisionColor(d)}"></span>${d}</div>`).join(''); }
 
-// ====== ติดตามตำแหน่งแบบต่อเนื่อง ======
-function updateUserLocation(latitude, longitude, accuracy){
-  if(!userMarker){
-    userMarker = L.marker([latitude, longitude], { title: 'ตำแหน่งของฉัน', icon: userIcon }).bindPopup('ตำแหน่งของฉัน');
-    userMarker.addTo(map);
-  } else {
-    userMarker.setLatLng([latitude, longitude]);
-  }
-  if(!userCircle){
-    userCircle = L.circle([latitude, longitude], { radius: accuracy||50 });
-    userCircle.addTo(map);
-  } else {
-    userCircle.setLatLng([latitude, longitude]);
-    userCircle.setRadius(accuracy||50);
-  }
-}
-function startWatch(){
-  if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; }
-  if(watchId!=null){ toast('กำลังติดตามอยู่แล้ว'); return; }
-  watchId = navigator.geolocation.watchPosition(pos => {
-    const { latitude, longitude, accuracy } = pos.coords;
-    updateUserLocation(latitude, longitude, accuracy);
-    if(following){ map.setView([latitude, longitude], Math.max(14, map.getZoom())); }
-  }, err => {
-    toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง');
-    stopWatch();
-  }, { enableHighAccuracy:true, maximumAge: 3000, timeout:10000 });
-  const b = document.getElementById('locBtn'); if(b) b.textContent = 'หยุดติดตามฉัน';
-  toast('เริ่มติดตามตำแหน่ง');
-}
-function stopWatch(){
-  if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
-  const b = document.getElementById('locBtn'); if(b) b.textContent = 'เริ่มติดตามฉัน';
-  toast('หยุดติดตามตำแหน่ง');
-}
-// ====== /ติดตามตำแหน่ง ======
+function filterRows(q){ if(!q) return dataRows; const s=q.toLowerCase(); return dataRows.filter(r=>[r.name,r.station,r.division,r.bureau,r.radio].some(v=>(v||"").toLowerCase().includes(s))); }
 
-async function init(){
-  ensureMap();
-  try{
-    const { intersections, stationToDivision, divisionToBureau } = await loadAllCSVs();
-    // เติม division / bureau ตามความสัมพันธ์
-    dataRows = intersections.map(o=>{
-      const st = normalizeUnitText(o.station);
-      const dv = normalizeUnitText(stationToDivision.get(st) || '');
-      const bc = normalizeUnitText(divisionToBureau.get(dv) || '');
-      return { ...o, division: dv, bureau: bc };
-    });
-    plotMarkers(dataRows);
-    toast('โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว');
-  }catch(e){
-    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e?.message||''));
-  }
-} จุดแล้ว');
-  }catch(e){
-    console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+ (e?.message||''));
-  }
-}
+function updateUserLocation(lat,lng,acc){ if(!userMarker){ userMarker=L.marker([lat,lng],{title:'ตำแหน่งของฉัน',icon:userIcon}).bindPopup('ตำแหน่งของฉัน'); userMarker.addTo(map);} else { userMarker.setLatLng([lat,lng]); } if(!userCircle){ userCircle=L.circle([lat,lng],{radius:acc||50}); userCircle.addTo(map);} else { userCircle.setLatLng([lat,lng]); userCircle.setRadius(acc||50);} }
+function startWatch(){ if(!navigator.geolocation){ toast('อุปกรณ์ไม่รองรับระบุตำแหน่ง'); return; } if(watchId!=null){ toast('กำลังติดตามอยู่แล้ว'); return; } watchId=navigator.geolocation.watchPosition(p=>{ const {latitude,longitude,accuracy}=p.coords; updateUserLocation(latitude,longitude,accuracy); if(following){ map.setView([latitude,longitude], Math.max(14,map.getZoom())); } }, err=>{ toast('ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง'); stopWatch(); }, { enableHighAccuracy:true, maximumAge:3000, timeout:10000 }); const b=document.getElementById('locBtn'); if(b) b.textContent='หยุดติดตามฉัน'; toast('เริ่มติดตามตำแหน่ง'); }
+function stopWatch(){ if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId=null; } const b=document.getElementById('locBtn'); if(b) b.textContent='เริ่มติดตามฉัน'; toast('หยุดติดตามตำแหน่ง'); }
 
-// UI events
-window.addEventListener('DOMContentLoaded', () => {
-  init();
-  document.getElementById('locBtn').onclick = ()=>{ if(watchId==null) startWatch(); else stopWatch(); };
-  document.getElementById('reloadBtn').onclick = init;
-  const search = document.getElementById('search');
-  search.addEventListener('input', (e)=>{
-    const rows = filterRows(e.target.value);
-    plotMarkers(rows);
-  });
-});
+let legendControl=null;
+function ensureMap(){ if(map) return; map=L.map('map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map); map.setView([13.7563,100.5018],11); legendControl=L.control({position:'bottomright'}); legendControl.onAdd=function(){ const div=L.DomUtil.create('div','legend'); div.innerHTML=`<b>สีตาม บก.</b><div id="legendList"></div>`; return div; }; legendControl.addTo(map); }
+
+async function init(){ ensureMap(); try{ const {intersections,stationToDivision,divisionToBureau}=await loadAllCSVs(); dataRows=intersections.map(o=>{ const st=normalizeUnitText(o.station); const dv=normalizeUnitText(stationToDivision.get(st)||''); const bc=normalizeUnitText(divisionToBureau.get(dv)||''); return {...o, division:dv, bureau:bc}; }); plotMarkers(dataRows); toast(`โหลดจุดข้อมูล ${dataRows.length} จุดแล้ว`); } catch(e){ console.error(e); toast('โหลดข้อมูลไม่สำเร็จ: '+(e&&e.message?e.message:e)); } }
+
+// ===== Startup =====
+window.addEventListener('DOMContentLoaded', ()=>{ init(); document.getElementById('locBtn').onclick=()=>{ if(watchId==null) startWatch(); else stopWatch(); }; document.getElementById('reloadBtn').onclick=init; document.getElementById('search').addEventListener('input',e=>plotMarkers(filterRows(e.target.value))); });
 </script>
 </body>
 </html>
